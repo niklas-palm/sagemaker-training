@@ -3,7 +3,11 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
 from sklearn.metrics import f1_score
+
+import smdistributed.dataparallel.torch.torch_smddp
 
 
 class SimpleCNN(nn.Module):
@@ -26,7 +30,10 @@ class SimpleCNN(nn.Module):
 
 
 def train(args):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    dist.init_process_group(backend="smddp")
+    local_rank = dist.get_local_rank()
+    torch.cuda.set_device(local_rank)
+    device = torch.device("cuda", local_rank)
 
     # Load data from input channels
     train_data_path = os.path.join(args.train_dir, "train_dataset.pt")
@@ -44,12 +51,12 @@ def train(args):
 
     # Model
     model = SimpleCNN().to(device)
+    model = DDP(model, device_ids=[local_rank])
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters())
 
     # Training loop
     for epoch in range(args.epochs):
-        print(f"--- Epoch {epoch} ---")
         model.train()
         running_loss = 0.0
         for i, data in enumerate(trainloader, 0):
@@ -62,7 +69,9 @@ def train(args):
             optimizer.step()
 
             running_loss += loss.item()
-            if i % 100 == 99:  # Log every 100 mini-batches
+            if (
+                i % 100 == 99 and local_rank == 0
+            ):  # Log every 100 mini-batches on rank 0
                 print(f"train_loss: {running_loss/100:.4f}")
                 running_loss = 0.0
 
@@ -88,31 +97,32 @@ def train(args):
         accuracy = 100 * correct / total
         avg_test_loss = test_loss / len(testloader)
         f1 = f1_score(all_labels, all_preds, average="weighted")
-        print(f"--- Epoch {epoch} test results: ---")
-        print(f"test_accuracy: {accuracy:.4f}")
-        print(f"test_loss: {avg_test_loss:.4f}")
-        print(f"f1_score: {f1:.4f}")
 
-    # Save model
-    torch.save(model.state_dict(), os.path.join(args.model_dir, "model.pth"))
+        if local_rank == 0:
+            print(f"--- Epoch {epoch} test results: ---")
+            print(f"test_accuracy: {accuracy:.4f}")
+            print(f"test_loss: {avg_test_loss:.4f}")
+            print(f"f1_score: {f1:.4f}")
 
-    # Create summary.txt
-    summary_path = os.path.join(args.output_dir, "summary.txt")
-    with open(summary_path, "w") as f:
-        f.write(f"Model: SimpleCNN\n")
-        f.write(f"Epochs trained: {args.epochs}\n")
-        f.write(f"Final test accuracy: {accuracy:.4f}\n")
-        f.write(f"Final test loss: {avg_test_loss:.4f}\n")
-        f.write(f"Final F1 score: {f1:.4f}\n")
+    # Save model and create summary (only on rank 0)
+    if local_rank == 0:
+        torch.save(model.module.state_dict(), os.path.join(args.model_dir, "model.pth"))
 
-    print(f"Summary file created at: {summary_path}")
+        summary_path = os.path.join(args.output_dir, "summary.txt")
+        with open(summary_path, "w") as f:
+            f.write(f"Model: SimpleCNN\n")
+            f.write(f"Epochs trained: {args.epochs}\n")
+            f.write(f"Final test accuracy: {accuracy:.4f}\n")
+            f.write(f"Final test loss: {avg_test_loss:.4f}\n")
+            f.write(f"Final F1 score: {f1:.4f}\n")
+
+        print(f"Summary file created at: {summary_path}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--batch-size", type=int, default=64)
-
     parser.add_argument("--model-dir", type=str, default=os.environ["SM_MODEL_DIR"])
     parser.add_argument(
         "--train-dir", type=str, default=os.environ["SM_CHANNEL_TRAINING"]

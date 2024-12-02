@@ -59,8 +59,12 @@ def train(args):
     # Prepare data
     trainset, testset = prepare_data(args.data_dir)
 
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=args.batch_size, shuffle=False)
+    trainloader = torch.utils.data.DataLoader(
+        trainset, batch_size=args.batch_size, shuffle=True
+    )
+    testloader = torch.utils.data.DataLoader(
+        testset, batch_size=args.batch_size, shuffle=False
+    )
 
     # Model
     model = SimpleCNN().to(device)
@@ -98,7 +102,7 @@ def train(args):
     local_model_path = os.path.join(args.model_dir, "model.pth")
     torch.save(model.state_dict(), local_model_path)
 
-     # Upload model to S3
+    # Upload model to S3
     if args.s3_bucket and args.s3_key:
         upload_to_s3(local_model_path, args.s3_bucket, args.s3_key)
 
@@ -118,7 +122,7 @@ if __name__ == "__main__":
         data_dir=data_dir,
         s3_bucket=s3_bucket,
         s3_key=s3_key,
-        batch_size=batch_size
+        batch_size=batch_size,
     )
 
     train(args)
