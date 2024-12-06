@@ -113,7 +113,7 @@ if __name__ == "__main__":
     model_dir = "./model"
     s3_bucket = "mlbucket13"
     s3_key = "mymodel/model.pt"
-    epochs = 2
+    epochs = 5
     batch_size = 64
 
     args = argparse.Namespace(

@@ -78,7 +78,7 @@ def train(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs", type=int, default=2)
+    parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch-size", type=int, default=64)
 
     parser.add_argument("--model-dir", type=str, default=os.environ["SM_MODEL_DIR"])
