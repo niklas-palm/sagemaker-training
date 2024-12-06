@@ -99,6 +99,8 @@ def train(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    # SageMaker passes "train" as command by default when launching a training job, so we need to handle it.
+    parser.add_argument("command", type=str, help="Command to run (e.g., train)")
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--batch-size", type=int, default=64)
 
