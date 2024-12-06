@@ -1,4 +1,4 @@
-# PyTorch
+# PyTorch estimator
 
 This is part of a blog post on SageMaker Training.
 
